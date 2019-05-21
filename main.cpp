@@ -117,6 +117,11 @@ void render(cv::Mat &mat, const Array<Array<int>> &col) {
 
 Array<Array<int>> detectPieceFeatures(int R, int C, Array<kika::cod> pnts) {
   Array<Array<int>> res(R, Array<int>(C));
+  for (const kika::cod &pnt : pnts) {
+    int x = real(pnt);
+    int y = imag(pnt);
+    res[x][y] = 100;
+  }
   Array<kika::cod> ch = kika::convex_hull(pnts);
   ch.push_back(ch[0]);
   for (int i = 0; i + 1 < ch.size(); ++i) {
