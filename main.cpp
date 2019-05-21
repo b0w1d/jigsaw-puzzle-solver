@@ -154,15 +154,15 @@ std::vector<std::vector<int>> detectPieceFeatures(int R, int C, std::vector<kika
   for (int i = 0; i < R; ++i) {
     for (int j = 0; j < C; ++j) {
       if (~res[i][j]) continue;
-      flood(R, C, i, j, col_cnt * 20, [](int x, int y) { return false; }, res);
+      flood(R, C, i, j, col_cnt * 10, [](int x, int y) { return false; }, res);
       ++col_cnt;
     }
   }
   std::vector<std::vector<kika::cod>> mat(col_cnt - 1);
   for (int i = 0; i < R; ++i) {
     for (int j = 0; j < C; ++j) {
-      if (0 < res[i][j] && res[i][j] < col_cnt * 20) {
-        mat[res[i][j] / 20 - 1].push_back(kika::cod(i, j));
+      if (0 < res[i][j] && res[i][j] < col_cnt * 10) {
+        mat[res[i][j] / 10 - 1].push_back(kika::cod(i, j));
       }
     }
   }
@@ -203,7 +203,6 @@ std::vector<std::vector<int>> detectPieceFeatures(int R, int C, std::vector<kika
       std::plus<double>()
     ) / mat[c].size();
     for (const auto &p : mat[c]) {
-      continue;
       int x = std::real(p);
       int y = std::imag(p);
       if (std::abs(sx - sy) / (sx + sy) < 0.2) { // concave
