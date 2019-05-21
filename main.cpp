@@ -203,6 +203,7 @@ std::vector<std::vector<int>> detectPieceFeatures(int R, int C, std::vector<kika
       std::plus<double>()
     ) / mat[c].size();
     for (const auto &p : mat[c]) {
+      continue;
       int x = std::real(p);
       int y = std::imag(p);
       if (std::abs(sx - sy) / (sx + sy) < 0.2) { // concave
