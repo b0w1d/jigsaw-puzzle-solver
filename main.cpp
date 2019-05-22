@@ -167,7 +167,7 @@ std::vector<std::vector<int>> detectPieceFeatures(int R, int C, std::vector<kika
     }
   }
   for (int c = 0; c < mat.size(); ++c) {
-    if (mat[c].size() < 10) continue;
+    if (mat[c].size() < 10) continue; // TODO: rotational
     double mx = vec2::reduce(
       vec2::map(
         mat[c],
@@ -202,6 +202,7 @@ std::vector<std::vector<int>> detectPieceFeatures(int R, int C, std::vector<kika
       ),
       std::plus<double>()
     ) / mat[c].size();
+    std::vector<kika::cod> convex_pnts;
     for (const auto &p : mat[c]) {
       int x = std::real(p);
       int y = std::imag(p);
@@ -209,8 +210,23 @@ std::vector<std::vector<int>> detectPieceFeatures(int R, int C, std::vector<kika
         res[x][y] = 50;
       } else { // convex
         res[x][y] = 100;
+        convex_pnts.emplace_back(x, y);
       }
     }
+    double u = vec2::reduce(
+      vec2::map(
+        convex_pnts,
+        [&](kika::cod p) {
+          double dx = std::real(p) - mx;
+          double dy = std::imag(p) - my;
+          return std::make_pair(dx * dx + dy * dy, p);
+        )
+      ),
+      [](std::pair<double, kika::cod> a, std::pair<double, kika::cod> b) {
+        return a.first < b.first ? a : b;
+      }
+    );
+    res[std::real(u)][std::imag(u)] = 0;
   }
   return res;
 }
