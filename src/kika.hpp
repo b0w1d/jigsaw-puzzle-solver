@@ -81,6 +81,32 @@ std::vector<cod> full_convex_hull(std::vector<cod> p) {
   }
   return ch_full;
 }
+cod least_squares(const std::vector<cod> &ps) {
+  int n = ps.size();
+  std::vector<double> x(n);
+  std::vector<double> y(n);
+  for (int i = 0; i < n; ++i) {
+    x[i] = std::real(ps[i]);
+    y[i] = std::imag(ps[i]);
+  }
+  std::vector<double> xy(n);
+  for (int i = 0; i < n; ++i) xy[i] = 1.0 * x[i] * y[i];
+  std::vector<double> x2(n);
+  for (int i = 0; i < n; ++i) x2[i] = 1.0 * x[i] * x[i];
+  double xsum = std::accumulate(x.begin(), x.end(), 0.0);
+  double ysum = std::accumulate(y.begin(), y.end(), 0.0);
+  double xysum = std::accumulate(xy.begin(), xy.end(), 0.0);
+  double x2sum = std::accumulate(x2.begin(), x2.end(), 0.0);
+  double au = n * xysum - xsum * ysum;
+  double av = n * x2sum - xsum * xsum;
+  double bu = x2sum * ysum - xysum * xsum;
+  double bv = n * x2sum - xsum * xsum;
+  if (x2sum == 0) return cod(
+    (au < 0 ? -1 : 1) * std::numeric_std::numeric_limits<double>::max(),
+    0
+  );
+  return cod(au / av, bu / bv);
+}
 };  // namespace kika
 
 #endif

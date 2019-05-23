@@ -246,13 +246,24 @@ struct Piece {
     int max_size = 0;
     int best_i = -1;
     for (int i = 1; i < col2pnts.size(); ++i) {
-      std::cout << i << " " << col2pnts[i].size() << std::endl;
       if (max_size < col2pnts[i].size()) {
         max_size = col2pnts[i].size();
         best_i = i;
       }
     }
-    for (auto p : col2pnts[best_i]) col[std::real(p)][std::imag(p)] = 100;
+
+    std::vector<kika::cod> ch_inside = kika::full_convex_hull(col2pnts[best_i]);
+    for (int i = 0; i < ch_inside.size(); ++i) {
+      const int n = 10;
+      std::vector<kika::cod> prev(n);
+      std::vector<kika::cod> next(n);
+      for (int j = 0; j < n; ++j) {
+        prev[j] = ch_inside[(i - j + ch_inside.size()) % ch_inside.size()];
+        next[j] = ch_inside[(i + j) % ch_inside.size()];
+      }
+      cod p_ab = kika::least_squares(prev);
+      cod n_ab = kika::least_squares(next);
+    }
   }
 };
 
