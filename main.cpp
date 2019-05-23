@@ -263,6 +263,18 @@ struct Piece {
       }
       cod p_ab = kika::least_squares(prev);
       cod n_ab = kika::least_squares(next);
+      cod p_v = cod(1, std::real(p_ab));
+      cod n_v = cod(1, std::real(n_ab));
+      if (std::abs(std::imag(p_v)) == std::numeric_limits<double>::max()) {
+        p_v = cod(0, std::imag(p_v) < 0 ? -1 : 1);
+      }
+      if (std::abs(std::imag(n_v)) == std::numeric_limits<double>::max()) {
+        n_v = cod(0, std::imag(n_v) < 0 ? -1 : 1);
+      }
+      double angle = kika::angle(p_v, n_v);
+      if (angle < acos(-1) * 3 / 4) { // is corner
+        corner_pnts.push_back(ch_inside[i]);
+      }
     }
   }
 };
