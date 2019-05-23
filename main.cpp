@@ -11,6 +11,8 @@
 #include <initializer_list>
 #include <cmath>
 #include <cassert>
+#include <utility>
+#include <tuple>
 #include "opencv2/opencv.hpp"
 #include "src/vec2.hpp"
 #include "src/kika.hpp"
@@ -108,128 +110,151 @@ void render(cv::Mat &mat, const std::vector<kika::cod> &pnts) {
   }
 }
 
-void render(cv::Mat &mat, const std::vector<std::vector<int>> &col) {
+void render(cv::Mat &mat, const std::vector<std::vector<int>> &col, int r = 0, int c = 0) {
   for (int i = 0; i < col.size(); ++i) {
     for (int j = 0; j < col[0].size(); ++j) {
       if (col[i][j]) {
-        mat.at<uchar>(i, j) = col[i][j];
+        mat.at<uchar>(r + i, c + j) = col[i][j];
       }
     }
   }
 }
 
-std::vector<std::vector<int>> detectPieceFeatures(int R, int C, std::vector<kika::cod> pnts) {
-  std::vector<std::vector<int>> res(R, std::vector<int>(C, -1));
-  for (const kika::cod &pnt : pnts) {
-    int x = std::real(pnt);
-    int y = std::imag(pnt);
-    res[x][y] = 200;
-  }
-  std::vector<kika::cod> ch = kika::convex_hull(pnts);
-  ch.push_back(ch[0]);
-  for (int i = 0; i + 1 < ch.size(); ++i) {
-    int lx = real(ch[i]);
-    int ly = imag(ch[i]);
-    int ux = real(ch[i + 1]);
-    int uy = imag(ch[i + 1]);
-    int dx = ux - lx;
-    int dy = uy - ly;
-    if (std::abs(dy) < std::abs(dx)) {
-      double t = 1.0 * dy / dx;
-      for (int j = std::min(0, dx); j < std::max(0, dx); ++j) {
-        assert(0 <= lx + j && lx + j < R);
-        assert(0 <= ly + t * j && ly + t * j < C);
-        res[lx + j][ly + t * j] = 200;
-      }
-    } else {
-      double t = 1.0 * dx / dy;
-      for (int j = std::min(0, dy); j < std::max(0, dy); ++j) {
-        assert(0 <= ly + j && ly + j < C);
-        assert(0 <= lx + t * j && lx + t * j < R);
-        res[lx + t * j][ly + j] = 200;
+struct Piece {
+  std::vector<std::vector<int>> col;
+  std::vector<kika::cod> convex_pnts;
+  std::vector<kika::cod> corner_pnts;
+  Piece(std::vector<kika::cod> pnts) {
+    int min_x = std::real(pnts[0]);
+    int max_x = std::real(pnts[0]);
+    int min_y = std::imag(pnts[0]);
+    int max_y = std::imag(pnts[0]);
+    for (const kika::cod &pnt : pnts) {
+      min_x = std::min<int>(min_x, std::real(pnt));
+      max_x = std::max<int>(max_x, std::real(pnt));
+      min_y = std::min<int>(min_y, std::imag(pnt));
+      max_y = std::max<int>(max_y, std::imag(pnt));
+    }
+    for (kika::cod &pnt : pnts) {
+      pnt -= kika::cod(min_x - 1, min_y - 1);
+    }
+    max_x -= min_x - 2;
+    min_x = 1;
+    max_y -= min_y - 2;
+    min_y = 1;
+
+    std::vector<kika::cod> ch = kika::full_convex_hull(pnts);
+
+    col.assign(max_x + 1, std::vector<int>(max_y + 1, -1));
+    for (const kika::cod &p : pnts) col[std::real(p)][std::imag(p)] = 200;
+    for (const kika::cod &p : ch) col[std::real(p)][std::imag(p)] = 200;
+
+    int col_cnt = 0;
+    for (int i = 0; i < max_x + 1; ++i) {
+      for (int j = 0; j < max_y + 1; ++j) {
+        if (~col[i][j]) continue;
+        flood(max_x + 1, max_y + 1, i, j, col_cnt, [](int x, int y) { return false; }, col);
+        ++col_cnt;
       }
     }
-  }
-  int col_cnt = 0;
-  for (int i = 0; i < R; ++i) {
-    for (int j = 0; j < C; ++j) {
-      if (~res[i][j]) continue;
-      flood(R, C, i, j, col_cnt * 10, [](int x, int y) { return false; }, res);
-      ++col_cnt;
-    }
-  }
-  std::vector<std::vector<kika::cod>> mat(col_cnt - 1);
-  for (int i = 0; i < R; ++i) {
-    for (int j = 0; j < C; ++j) {
-      if (0 < res[i][j] && res[i][j] < col_cnt * 10) {
-        mat[res[i][j] / 10 - 1].push_back(kika::cod(i, j));
+    std::vector<std::vector<kika::cod>> ccs(col_cnt - 1);
+    for (int i = 0; i < max_x + 1; ++i) {
+      for (int j = 0; j < max_y + 1; ++j) {
+        if (col[i][j] && col[i][j] < 200) { // skip if background | convex hull
+          assert(0 < col[i][j] && col[i][j] <= ccs.size());
+          ccs[col[i][j] - 1].emplace_back(i, j);
+        }
       }
     }
-  }
-  for (int c = 0; c < mat.size(); ++c) {
-    if (mat[c].size() < 10) continue; // TODO: rotational
-    double mx = vec2::reduce(
-      vec2::map(
-        mat[c],
-        [](kika::cod p) { return std::real(p); }
-      ),
-      std::plus<double>()
-    ) / mat[c].size();
-    double my = vec2::reduce(
-      vec2::map(
-        mat[c],
-        [](kika::cod p) { return std::imag(p); }
-      ),
-      std::plus<double>()
-    ) / mat[c].size();
-    double sx = vec2::reduce(
-      vec2::map(
-        vec2::map(
-          mat[c],
-          [&](kika::cod p) { return (std::real(p) - mx); }
-        ),
-        [](double v) { return v * v; }
-      ),
-      std::plus<double>()
-    ) / mat[c].size();
-    double sy = vec2::reduce(
-      vec2::map(
-        vec2::map(
-          mat[c],
-          [&](kika::cod p) { return (std::imag(p) - my); }
-        ),
-        [](double v) { return v * v; }
-      ),
-      std::plus<double>()
-    ) / mat[c].size();
-    std::vector<kika::cod> convex_pnts;
-    for (const auto &p : mat[c]) {
-      int x = std::real(p);
-      int y = std::imag(p);
-      if (std::abs(sx - sy) / (sx + sy) < 0.2) { // concave
-        res[x][y] = 50;
-      } else { // convex
-        res[x][y] = 100;
-        convex_pnts.emplace_back(x, y);
+
+    ccs = vec2::select(ccs, [](std::vector<kika::cod> v) { return 10 < v.size(); });
+
+    std::vector<kika::cod> gs(ccs.size());
+    std::vector<kika::cod> fs(ccs.size());
+    std::vector<kika::cod> vs(ccs.size());
+    std::vector<kika::cod> rs(ccs.size());
+    std::vector<bool> qs(ccs.size());
+    for (int i = 0; i < ccs.size(); ++i) {
+      gs[i] = std::accumulate(ccs[i].begin(), ccs[i].end(), kika::cod()) /
+              kika::cod(ccs[i].size(), 0);
+      assert(ccs[i].size());
+      fs[i] = *std::max_element(
+          ccs[i].begin(), ccs[i].end(), [&](kika::cod p, kika::cod q) {
+            return kika::dist2(p, gs[i]) < kika::dist2(q, gs[i]);
+          });
+      vs[i] = fs[i] - gs[i];
+      double sx = 0;
+      double sy = 0;
+      for (const kika::cod &p : ccs[i]) {
+        double dx = std::real(p) - std::real(gs[i]);
+        double dy = std::imag(p) - std::imag(gs[i]);
+        sx += dx * dx / ccs[i].size();
+        sy += dy * dy / ccs[i].size();
+      }
+      rs[i] = kika::cod(sx, sy);
+      qs[i] = 0.2 < std::abs(sx - sy) / (sx + sy);
+      /* if (0.2 < std::abs(sx - sy) / (sx + sy)) { // convex */
+      /*   col[std::real(furthest)][std::imag(furthest)] = 255; */
+      /* } */
+    }
+
+    std::vector<std::tuple<double, int>> best(
+        ccs.size(), {std::numeric_limits<double>::max(), -1});
+    for (int i = 0; i < ccs.size(); ++i) {
+      if (!qs[i]) continue;
+      for (int j = 0; j < ccs.size(); ++j) {
+        if (!qs[j]) continue;
+        if (i == j) continue;
+        double angle = kika::angle(vs[i], vs[j]);
+        if (acos(-1) * 3 / 4 < angle) {
+          double dd = kika::dist2(gs[i], gs[j]);
+          if (dd < std::get<0>(best[i])) {
+            best[i] = std::make_tuple(dd, j);
+          }
+        }
       }
     }
-    double u = vec2::reduce(
-      vec2::map(
-        convex_pnts,
-        [&](kika::cod p) {
-          double dx = std::real(p) - mx;
-          double dy = std::imag(p) - my;
-          return std::make_pair(dx * dx + dy * dy, p);
-        )
-      ),
-      [](std::pair<double, kika::cod> a, std::pair<double, kika::cod> b) {
-        return a.first < b.first ? a : b;
+
+    col.assign(max_x + 1, std::vector<int>(max_y + 1, -1));
+    for (auto p : ch) col[std::real(p)][std::imag(p)] = 200;
+    flood(max_x + 1, max_y + 1, 0, 0, 0, [](int a, int b) { return false; }, col);
+    for (int i = 0; i < ccs.size(); ++i) {
+      if (!qs[i]) continue;
+      int j = std::get<1>(best[i]);
+      assert(i == std::get<1>(best[j]));
+      if (j < i) continue;
+      std::vector<kika::cod> pnts;
+      for (const kika::cod &p : ccs[i]) pnts.push_back(p);
+      for (const kika::cod &p : ccs[j]) pnts.push_back(p);
+      std::vector<kika::cod> ch = kika::full_convex_hull(pnts);
+      for (auto p : ch) col[std::real(p)][std::imag(p)] = 200;
+    }
+    col_cnt = 1;
+    for (int i = 0; i < max_x + 1; ++i) {
+      for (int j = 0; j < max_y + 1; ++j) {
+        if (~col[i][j]) continue;
+        flood(max_x + 1, max_y + 1, i, j, col_cnt, [&](int a, int b) { return false; }, col);
+        ++col_cnt;
       }
-    );
-    res[std::real(u)][std::imag(u)] = 0;
+    }
+    std::vector<std::vector<kika::cod>> col2pnts(std::max(256, col_cnt));
+    for (int i = 0; i < max_x + 1; ++i) {
+      for (int j = 0; j < max_y + 1; ++j) {
+        col2pnts[col[i][j]].emplace_back(i, j);
+      }
+    }
+    int max_size = 0;
+    int best_i = -1;
+    for (int i = 1; i < col2pnts.size(); ++i) {
+      std::cout << i << " " << col2pnts[i].size() << std::endl;
+      if (max_size < col2pnts[i].size()) {
+        max_size = col2pnts[i].size();
+        best_i = i;
+      }
+    }
+    for (auto p : col2pnts[best_i]) col[std::real(p)][std::imag(p)] = 100;
   }
-  return res;
-}
+};
 
 int main(int argc, const char* argv[]) {
   if (argc != 2) {
@@ -242,10 +267,29 @@ int main(int argc, const char* argv[]) {
   std::vector<std::vector<kika::cod>> pieces = extractPieces(img);
 
   cv::Mat img_d(img.rows, img.cols, CV_8U, cv::Scalar(0));
-  for (const auto &piece : pieces) {
-    std::vector<std::vector<int>> col = detectPieceFeatures(img.rows, img.cols, piece);
-    render(img_d, col);
+
+  int prev_max_r = 0;
+  int next_max_r = 0;
+  int cur_c = 0;
+  for (int i = 0; i < pieces.size(); ++i) {
+    Piece piece(pieces[i]);
+    int r = piece.col.size();
+    int rr = 10 + r + 10;
+    int c = piece.col[0].size();
+    int cc = 10 + c + 10;
+    next_max_r = std::max(next_max_r, prev_max_r + rr);
+    if (img.cols <= cur_c + cc) {
+      cur_c = 0;
+      prev_max_r = next_max_r;
+    }
+    render(img_d, piece.col, prev_max_r + 10, cur_c + 10);
+    cur_c += cc;
   }
+
+  /* for (int i = 1; i < pieces.size(); ++i) { */
+  /*   std::cout << i << std::endl; */
+  /*   Piece piece(pieces[i]); */
+  /* } */
 
   cv::imwrite("pieces.png", img_d);
   cv::namedWindow("Display window", cv::WINDOW_AUTOSIZE); 

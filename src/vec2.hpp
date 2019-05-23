@@ -43,8 +43,8 @@ namespace vec2 {
   }
   template<typename T, typename F>
   std::vector<T> select(const std::vector<T> &v, const F &f) {
-    std::vector<T> res(v.size());
-    std::copy_if(v.begin(), v.end(), res.begin(), f);
+    std::vector<T> res;
+    std::copy_if(v.begin(), v.end(), std::back_inserter(res), f);
     return res;
   }
   template<typename T, typename F>
