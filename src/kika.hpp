@@ -23,11 +23,19 @@ double dist2(cod a, cod b) {
   double dy = std::imag(a) - std::imag(b);
   return dx * dx + dy * dy;
 }
+double dist(cod a, cod b) {
+  return std::sqrt(dist2(a, b));
+}
 cod rotate(cod a, double rad) {
   return a * cod(cos(rad), sin(rad));
 }
-double angle(cod a, cod b) {
+double angle180(cod a, cod b) {
   return acos(dot(a, b) / abs(a) / abs(b));
+}
+double angle360(cod a, cod b) {
+  double ang = angle180(a, b);
+  if (cross(a, b) < 0) ang = acos(-1) * 2 - ang;
+  return ang;
 }
 std::vector<cod> convex_hull(std::vector<cod> p) {
   std::sort(p.begin(), p.end(), less);
@@ -102,7 +110,7 @@ cod least_squares(const std::vector<cod> &ps) {
   double bu = x2sum * ysum - xysum * xsum;
   double bv = n * x2sum - xsum * xsum;
   if (x2sum == 0) return cod(
-    (au < 0 ? -1 : 1) * std::numeric_std::numeric_limits<double>::max(),
+    (au < 0 ? -1 : 1) * std::numeric_limits<double>::max(),
     0
   );
   return cod(au / av, bu / bv);
