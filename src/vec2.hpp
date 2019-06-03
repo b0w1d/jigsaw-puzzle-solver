@@ -26,13 +26,16 @@ namespace vec2 {
     assert(f.size() & 1);
     std::vector<T> r(v.size(), T(v[0].size()));
     for (int i = 0; i < v.size(); ++i) {
-      for (int j = 0; j < v[0].size(); ++j) {
+      for (int j = 0; j < v[i].size(); ++j) {
         int m = f.size() / 2;
         for (int x = -m; x < m + 1; ++x) {
           for (int y = -m; y < m + 1; ++y) {
             int s = i - x;
             int t = j - y;
             if (0 <= s && s < v.size() && 0 <= t && t < v[0].size()) {
+              assert(-1 < m + x && m + x < f.size());
+              assert(-1 < m + y && m + y < f[m + x].size());
+              assert(t < v[s].size());
               r[i][j] += f[m + x][m + y] * v[s][t];
             }
           }
