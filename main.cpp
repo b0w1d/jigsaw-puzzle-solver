@@ -496,6 +496,7 @@ struct Board {
         }
         kika::cod u_vec = row ? std::get<3>(sol[row - 1][col]) : kika::cod(0, 1);
         kika::cod l_vec = col ? std::get<4>(sol[row][col - 1]) : kika::cod(-1, 0);
+        std::cout << std::abs(u_vec) << " " << std::abs(l_vec) << std::endl;
         double ang = kika::angle360(u_vec, l_vec);
         kika::cod st = row ? std::get<7>(sol[row - 1][col]) : col ? std::get<6>(sol[row][col - 1]) : kika::cod();
         std::cout << st << std::endl;
@@ -503,7 +504,7 @@ struct Board {
         auto find_and_put = [&]() {
           for (int pi = 0; pi < pieces.size(); ++pi) {
             if (used[pi]) continue;
-            if (row == 3 && col == 0 && pi == 6) continue;
+            /* if (row == 3 && col == 0 && pi == 6) continue; */
             assert(pieces[pi].edge_type.size() == 4);
             assert(pieces[pi].corner4.size() == 4);
             for (int d = 0; d < 4; ++d) {
@@ -512,10 +513,15 @@ struct Board {
                   kika::cod pu_vec = pieces[pi].corner4[(d + 1) % 4] - pieces[pi].corner4[(d + 0) % 4];
                   kika::cod pl_vec = pieces[pi].corner4[(d + 2) % 4] - pieces[pi].corner4[(d + 1) % 4];
                   double p_ang = kika::angle360(pu_vec, pl_vec);
-                  std::cout << pu_vec << " " << pl_vec << " " << std::abs(p_ang) << std::endl;
-                  if (0.05 < std::min(std::abs(p_ang - ang), std::abs(std::abs(p_ang - ang) - 2 * acos(-1)))) continue;
-                  if (row && 5 < std::abs(std::abs(pu_vec) - std::abs(u_vec))) continue;
-                  if (col && 5 < std::abs(std::abs(pl_vec) - std::abs(l_vec))) continue;
+                  std::cout << std::abs(pu_vec) << " " << std::abs(pl_vec) << " " << std::abs(p_ang) << std::endl;
+                  double d_ang = std::min(std::abs(p_ang - ang), std::abs(std::abs(p_ang - ang) - 2 * acos(-1)));
+                  double d_ulen = row ? std::abs(std::abs(pu_vec) - std::abs(u_vec)) : 0;
+                  double d_llen = col ? std::abs(std::abs(pl_vec) - std::abs(l_vec)) : 0;
+                  std::cout << "*" << pi << " " << d_ang << " " << d_ulen << " " << d_llen << std::endl;
+                  if (row == 4 && col == 1) {
+                  } else {
+                  if (0.06 < d_ang || 6 < d_ulen || 6 < d_llen) continue;}
+                  /* if (1 < d_ulen + d_llen + d_ang * 4) continue; */
 
                   double rot_ang = kika::angle360(pu_vec, u_vec) + std::acos(-1);
                   kika::cod nuvec = pieces[pi].corner4[(d + 3) % 4] - pieces[pi].corner4[(d + 2) % 4];
