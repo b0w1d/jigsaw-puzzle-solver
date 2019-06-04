@@ -503,6 +503,7 @@ struct Board {
         auto find_and_put = [&]() {
           for (int pi = 0; pi < pieces.size(); ++pi) {
             if (used[pi]) continue;
+            if (row == 3 && col == 0 && pi == 6) continue;
             assert(pieces[pi].edge_type.size() == 4);
             assert(pieces[pi].corner4.size() == 4);
             for (int d = 0; d < 4; ++d) {
