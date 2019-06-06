@@ -528,7 +528,7 @@ struct Board {
         std::cout << std::abs(u_vec) << " " << std::abs(l_vec) << std::endl;
         double ang = kika::angle360(u_vec, l_vec);
         kika::cod st;
-        if (!row && !col) ;
+        if (!row && !col) st = kika::cod();
         else if (row && !col) st = std::get<7>(sol[row - 1][col]);
         else if (!row && col)  st = std::get<6>(sol[row][col - 1]);
         else st = row + col & 1 ? std::get<7>(sol[row - 1][col]) : std::get<6>(sol[row][col - 1]);
