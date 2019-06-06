@@ -272,8 +272,30 @@ struct Piece {
       plots[i] = kika::cod(0.01 * i, dd);
       plots_xy[i] = kika::cod(std::get<2>(pnts[a]), std::get<3>(pnts[a]));
     }
+    {
+      std::vector<double> smooth(628);
+      for (int i = 0; i < 628; ++i) {
+        static const double ratio[] = {1, 1, 2, 5, 2, 1, 1};
+        double s = std::accumulate(ratio, ratio + 7, 0.0);
+        for (int j = -3; j < 4; ++j) {
+          int k = (i + j + 628) % 628;
+          smooth[i] += ratio[2 + j] * std::imag(plots[k]) / s;
+        }
+      }
+      for (int i = 0; i < 628; ++i) {
+        plots[i] = kika::cod(0.01 * i, smooth[i]);
+      }
+    }
 
+    std::vector<kika::cod> bag;
     for (int i = 0; i < plots.size(); ++i) {
+      {
+        int u = (i - 1 + plots.size()) % plots.size();
+        int v = (i + 1) % plots.size();
+        /* std::cout << std::imag(plots[u]) << " "; */
+        /* std::cout << std::imag(plots[i]) << " "; */
+        /* std::cout << std::imag(plots[v]) << std::endl; */
+      }
       const int n = 15;
       std::vector<kika::cod> prev;
       std::vector<kika::cod> next;
@@ -296,10 +318,17 @@ struct Piece {
         n_v = kika::cod(0, std::imag(n_v) < 0 ? -1 : 1);
       }
       double angle = kika::angle360(p_v, n_v);
+      int u = (i - 1 + plots.size()) % plots.size();
+      int v = (i + 1) % plots.size();
+      /* std::cout << std::imag(plots[u]) << " " << std::imag(plots[i]) << " " << std::imag(plots[v]) << std::endl; */
       if (acos(-1) < angle && angle < acos(-1) * 5 / 4) { // is corner
-        corner_pnts.push_back(plots_xy[i]);
+        if (std::imag(plots[u]) < std::imag(plots[i]) && std::imag(plots[i]) >= std::imag(plots[v])) {
+          /* std::cout << "push" << std::endl; */
+          corner_pnts.push_back(plots_xy[i]);
+        }
       }
     }
+    std::cout << corner_pnts.size() << std::endl;
 
     { // corner4
       double maxd = 0;
@@ -308,7 +337,7 @@ struct Piece {
           maxd = std::max(maxd, std::abs(corner_pnts[i] - corner_pnts[j]));
         }
       }
-      const double T = maxd / 5; // threshold
+      const double T = maxd / 3; // threshold
       std::cout << T << std::endl;
       int p = 0;
       while (p < corner_pnts.size() && std::abs(corner_pnts[p] - corner_pnts[(p + 1) % corner_pnts.size()]) < T) ++p;
@@ -465,7 +494,7 @@ struct Board {
   std::vector<std::vector<std::tuple<int, int, double, kika::cod, kika::cod, kika::cod, kika::cod, kika::cod>>> sol;
   // index, edge_id, rot_angle, rot_uvec, rot_lvec, ul-xy, ur-xy, bl-xy
   Board(std::vector<Piece> _pieces) : pieces(_pieces) {
-    /* srand(time(0)); random_shuffle(pieces.begin(), pieces.end()); */
+    srand(time(0)); random_shuffle(pieces.begin(), pieces.end());
     for (auto p : pieces) {
       for (int d = 0; d < 4; ++d) std::cout << p.corner4[d] << " ";
       std::cout << p.col.size() << std::endl;
@@ -498,7 +527,11 @@ struct Board {
         kika::cod l_vec = col ? std::get<4>(sol[row][col - 1]) : kika::cod(-1, 0);
         std::cout << std::abs(u_vec) << " " << std::abs(l_vec) << std::endl;
         double ang = kika::angle360(u_vec, l_vec);
-        kika::cod st = row ? std::get<7>(sol[row - 1][col]) : col ? std::get<6>(sol[row][col - 1]) : kika::cod();
+        kika::cod st;
+        if (!row && !col) ;
+        else if (row && !col) st = std::get<7>(sol[row - 1][col]);
+        else if (!row && col)  st = std::get<6>(sol[row][col - 1]);
+        else st = row + col & 1 ? std::get<7>(sol[row - 1][col]) : std::get<6>(sol[row][col - 1]);
         std::cout << st << std::endl;
         std::cout << ang << " " << et[0] << " " << et[1] << std::endl;
         auto find_and_put = [&]() {
@@ -513,14 +546,10 @@ struct Board {
                   kika::cod pu_vec = pieces[pi].corner4[(d + 1) % 4] - pieces[pi].corner4[(d + 0) % 4];
                   kika::cod pl_vec = pieces[pi].corner4[(d + 2) % 4] - pieces[pi].corner4[(d + 1) % 4];
                   double p_ang = kika::angle360(pu_vec, pl_vec);
-                  std::cout << std::abs(pu_vec) << " " << std::abs(pl_vec) << " " << std::abs(p_ang) << std::endl;
                   double d_ang = std::min(std::abs(p_ang - ang), std::abs(std::abs(p_ang - ang) - 2 * acos(-1)));
                   double d_ulen = row ? std::abs(std::abs(pu_vec) - std::abs(u_vec)) : 0;
                   double d_llen = col ? std::abs(std::abs(pl_vec) - std::abs(l_vec)) : 0;
-                  std::cout << "*" << pi << " " << d_ang << " " << d_ulen << " " << d_llen << std::endl;
-                  if (row == 4 && col == 1) {
-                  } else {
-                  if (0.06 < d_ang || 6 < d_ulen || 6 < d_llen) continue;}
+                  if (0.1 < d_ang || 6 < d_ulen || 6 < d_llen) continue;
                   /* if (1 < d_ulen + d_llen + d_ang * 4) continue; */
 
                   double rot_ang = kika::angle360(pu_vec, u_vec) + std::acos(-1);
@@ -614,30 +643,30 @@ int main(int argc, const char* argv[]) {
   /* /1* piece4.render(img); *1/ */
   /* piece4.match(img, piece1); */
 
-  /* cv::Mat img_d(img.rows, img.cols, CV_8U, cv::Scalar(0)); */
+  cv::Mat img_d(img.rows, img.cols, CV_8U, cv::Scalar(0));
 
-  /* int prev_max_r = 0; */
-  /* int next_max_r = 0; */
-  /* int cur_c = 0; */
-  /* for (int i = 0; i < pieces.size(); ++i) { */
-  /*   Piece piece(pieces[i]); */
-  /*   int r = piece.col.size(); */
-  /*   int rr = 10 + r + 10; */
-  /*   int c = piece.col[0].size(); */
-  /*   int cc = 10 + c + 10; */
-  /*   next_max_r = std::max(next_max_r, prev_max_r + rr); */
-  /*   if (img.cols <= cur_c + cc) { */
-  /*     cur_c = 0; */
-  /*     prev_max_r = next_max_r; */
-  /*   } */
-  /*   render(img_d, piece.col, prev_max_r + 10, cur_c + 10); */
-  /*   cur_c += cc; */
-  /* } */
+  int prev_max_r = 0;
+  int next_max_r = 0;
+  int cur_c = 0;
+  for (int i = 0; i < pieces.size(); ++i) {
+    Piece piece(pieces[i]);
+    int r = piece.col.size();
+    int rr = 10 + r + 10;
+    int c = piece.col[0].size();
+    int cc = 10 + c + 10;
+    next_max_r = std::max(next_max_r, prev_max_r + rr);
+    if (img.cols <= cur_c + cc) {
+      cur_c = 0;
+      prev_max_r = next_max_r;
+    }
+    render(img_d, piece.col, prev_max_r + 10, cur_c + 10);
+    cur_c += cc;
+  }
 
-  /* cv::imwrite("pieces.png", img_d); */
-  /* cv::namedWindow("Display window", cv::WINDOW_AUTOSIZE); */ 
-  /* cv::imshow("Display window", img_d); */  
-  /* cv::waitKey(0); */
+  cv::imwrite("pieces.png", img_d);
+  cv::namedWindow("Display window", cv::WINDOW_AUTOSIZE); 
+  cv::imshow("Display window", img_d);  
+  cv::waitKey(0);
 
   Board board(pieces);
   board.render(img);
