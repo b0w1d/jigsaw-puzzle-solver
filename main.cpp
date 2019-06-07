@@ -242,8 +242,6 @@ struct Piece {
                                   }) -
                  col2pnts.begin();
 
-    /* for (auto p : col2pnts[best_i]) col[std::real(p)][std::imag(p)] = 200; */
-
     kika::cod g = std::accumulate(col2pnts[best_i].begin(), col2pnts[best_i].end(), kika::cod());
     g /= kika::cod(col2pnts[best_i].size(), 0);
 
@@ -268,7 +266,8 @@ struct Piece {
             int k = (i + j + pnts.size()) % pnts.size();
             samples.push_back(ratio[n + j] * std::get<1>(pnts[k]));
           }
-          smooth[i] = std::accumulate(samples.begin(), samples.end(), 0.0) / std::accumulate(ratio, ratio + n, 0);
+          smooth[i] = std::accumulate(samples.begin(), samples.end(), 0.0) /
+                      std::accumulate(ratio, ratio + n, 0);
         }
         for (int i = 0; i < pnts.size(); ++i) {
           plots[i] = kika::cod(i, smooth[i]);
@@ -299,26 +298,17 @@ struct Piece {
         n_v = kika::cod(0, std::imag(n_v) < 0 ? -1 : 1);
       }
       double angle = kika::angle360(p_v, n_v);
-      int u = (i - 1 + plots.size()) % plots.size();
-      int v = (i + 1) % plots.size();
-      /* std::cout << std::imag(plots[u]) << " " << std::imag(plots[i]) << " "
-       * << std::imag(plots[v]) << std::endl; */
-      if (acos(-1) < angle) {  // is corner
-        {
-          int u = (i - 1 + plots.size()) % plots.size();
-          int v = (i + 1) % plots.size();
-          double x = std::abs(std::imag(plots[u]) - std::imag(plots[i]));
-          double y = std::abs(std::imag(plots[i]) - std::imag(plots[v]));
-          if (std::imag(plots[u]) < std::imag(plots[i]) && std::imag(plots[i]) > std::imag(plots[v])) {
-            corner_pnts.push_back(plots_xy[i]);
-          }
-          /* std::cout << std::abs(std::imag(plots[u]) - std::imag(plots[i])) << " "; */
-          /* std::cout << std::abs(std::imag(plots[i]) - std::imag(plots[v])) << std::endl; */
+      if (acos(-1) < angle) { // is steep
+        int u = (i - 1 + plots.size()) % plots.size();
+        int v = (i + 1) % plots.size();
+        double x = std::abs(std::imag(plots[u]) - std::imag(plots[i]));
+        double y = std::abs(std::imag(plots[i]) - std::imag(plots[v]));
+        if (std::imag(plots[u]) < std::imag(plots[i]) &&
+            std::imag(plots[i]) > std::imag(plots[v])) {
+          corner_pnts.push_back(plots_xy[i]);
         }
       }
     }
-
-    std::cout << corner_pnts.size() << std::endl;
 
     { // corner4
       double maxd = 0;
@@ -328,18 +318,22 @@ struct Piece {
         }
       }
       const double T = maxd / 3; // threshold
-      std::cout << T << std::endl;
       int p = 0;
-      while (p < corner_pnts.size() && std::abs(corner_pnts[p] - corner_pnts[(p + 1) % corner_pnts.size()]) < T) ++p;
+      while (p < corner_pnts.size() &&
+             std::abs(corner_pnts[p] -
+                      corner_pnts[(p + 1) % corner_pnts.size()]) < T)
+        ++p;
       assert(p < corner_pnts.size() && "Corner points are too close");
-      for (int i = (p + 1) % corner_pnts.size(); corner4.size() < 4; ) {
+      for (int i = (p + 1) % corner_pnts.size(), j; corner4.size() < 4; i = j) {
         kika::cod g = corner_pnts[i];
-        int j = (i + 1) % corner_pnts.size();
-        for (; std::abs(corner_pnts[j] - corner_pnts[(j - 1 + corner_pnts.size()) % corner_pnts.size()]) < T; (j += 1) %= corner_pnts.size()) ;
-        int m = i < j ? (i+j)/2 : (i+corner_pnts.size()+j)/2%corner_pnts.size();
+        j = (i + 1) % corner_pnts.size();
+        while (
+            std::abs(corner_pnts[j] - corner_pnts[(j - 1 + corner_pnts.size()) %
+                                                  corner_pnts.size()]) < T)
+          (j += 1) %= corner_pnts.size();
+        int m = i < j ? (i + j) / 2
+                      : (i + corner_pnts.size() + j) / 2 % corner_pnts.size();
         corner4.push_back(corner_pnts[m]);
-        /* std::cout << "[" << i << ", " << j << "): " << std::abs(corner_pnts[j] - corner_pnts[(j - 1 + corner_pnts.size()) % corner_pnts.size()]) << std::endl; */
-        i = j;
       }
       assert(corner4.front() != corner4.back());
     }
@@ -410,14 +404,10 @@ struct Piece {
       }
     }
 
-    col.assign(max_x, std::vector<int>(max_y, 0));
-    for (auto p : P) {
-      assert(-1 < std::real(p) && std::real(p) < col.size());
-      assert(-1 < std::imag(p) && std::imag(p) < col[std::real(p)].size());
-      col[std::real(p)][std::imag(p)] = 20;
-    }
+    col.assign(max_x, std::vector<int>(max_y));
+    for (auto p : P) col[std::real(p)][std::imag(p)] = 80;
     /* for (auto p : ch_inside) col[std::real(p)][std::imag(p)] = 100; */
-    for (auto p : corner4) col[std::real(p)][std::imag(p)] = 200;
+    for (auto p : corner4) col[std::real(p)][std::imag(p)] = 255;
     /* for (int i = 0; i < 4; ++i) { */
     /*   if (edge_type[i] == 1) col[std::real(corner4[i])][std::imag(corner4[i])] = 200; */
     /* } */
@@ -446,7 +436,6 @@ struct Board {
   Board(std::vector<Piece> _pieces) : pieces(_pieces) {
     std::vector<int> used(pieces.size());
     std::function<bool(int, int)> solve = [&](int row, int col) {
-      std::cout << row << " " << col << std::endl;
       sol.resize(row + 1);
       sol[row].resize(col + 1);
       std::vector<int> et(2); {
@@ -475,8 +464,6 @@ struct Board {
       std::vector<std::tuple<double, int, int>> cands;
       for (int pi = 0; pi < pieces.size(); ++pi) {
         if (used[pi]) continue;
-        assert(pieces[pi].edge_type.size() == 4);
-        assert(pieces[pi].corner4.size() == 4);
         for (int d = 0; d < 4; ++d) {
           if ((et[0] + pieces[pi].edge_type[d]) % 3 == 0) {
             if ((et[1] + pieces[pi].edge_type[(d + 1) % 4]) % 3 == 0) {
@@ -486,7 +473,7 @@ struct Board {
               double d_ang = std::min(std::abs(p_ang - ang), std::abs(std::abs(p_ang - ang) - 2 * acos(-1)));
               double d_ulen = row ? std::abs(std::abs(pu_vec) - std::abs(u_vec)) : 0;
               double d_llen = col ? std::abs(std::abs(pl_vec) - std::abs(l_vec)) : 0;
-              if (0.1 < d_ang || 6 < d_ulen || 6 < d_llen) continue;
+              if (0.2 < d_ang || 6 < d_ulen || 6 < d_llen) continue;
               cands.emplace_back(-(d_ulen*d_ulen + d_llen*d_llen + d_ang*d_ang * 100), pi, d);
             }
           }
@@ -519,23 +506,25 @@ struct Board {
         sol[row][col] = std::make_tuple(pi, d, rot_ang, rot_nuvec, rot_nlvec, st - offset_rot, ur, bl);
         int ctype = (pieces[pi].edge_type[(d + 3) % 4] == 0) | (pieces[pi].edge_type[(d + 2) % 4] == 0) << 1;
         if (ctype == 1) { // edge
-          bool bad = (!row && pieces.size() % col)
+          bool bad = (!row && pieces.size() % (col + 1))
                   || (row && sol[0].size() != col + 1);
           if (!bad && solve(row + 1, 0)) return true;
-          sol.pop_back();
         } else if (ctype == 3) { // corner
-          return std::accumulate(used.begin(), used.end(), 0) == pieces.size();
+          if ((row + 1) * (col + 1) == pieces.size()) return true;
         } else {
           bool bad = (row && sol[0].size() == col + 1);
           if (!bad && solve(row, col + 1)) return true;
-          sol[row].pop_back();
         }
         used[pi] = 0;
       }
 
+      if (col) sol[row].pop_back();
+      else sol.pop_back();
+
       return false;
     };
     assert(solve(0, 0));
+    std::cout << "OK: " << sol.size() << "x" << sol[0].size() << std::endl;
   }
   void render(const cv::Mat &img) {
     const int offset = 50;
@@ -577,20 +566,8 @@ int main(int argc, const char* argv[]) {
   cv::Mat img = cv::imread(argv[1]);
 
   std::vector<std::vector<kika::cod>> piece_pnts = extractPieces(img);
-  for (auto v : piece_pnts) {
-    std::cout << v.size() << std::endl;
-  }
-
   std::vector<Piece> pieces;
   for (auto pnts : piece_pnts) pieces.push_back(Piece(pnts));
-    for (auto p : pieces) {
-      for (int d = 0; d < 4; ++d) std::cout << p.corner4[d] << " ";
-      std::cout << p.col.size() << std::endl;
-    }
-
-  /* Piece piece4(pieces[4]); // (121, 17), (118, 155) */ 
-  /* /1* piece4.render(img); *1/ */
-  /* piece4.match(img, piece1); */
 
   /* const int canvas_r = 1000; */
   /* const int canvas_c = 1600; */
