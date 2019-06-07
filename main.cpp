@@ -276,7 +276,7 @@ struct Piece {
       std::vector<double> smooth(628);
       for (int t = 0; t < 3; ++t) {
         for (int i = 0; i < 628; ++i) {
-          static const double ratio[] = {1, 2, 3, 4, 3, 2, 1};
+          static const double ratio[] = {1, 2, 3, 6, 3, 2, 1};
           double s = std::accumulate(ratio, ratio + 7, 0.0);
           for (int j = -3; j < 4; ++j) {
             int k = (i + j + 628) % 628;
@@ -328,7 +328,7 @@ struct Piece {
       int u = (i - 1 + plots.size()) % plots.size();
       int v = (i + 1) % plots.size();
       /* std::cout << std::imag(plots[u]) << " " << std::imag(plots[i]) << " " << std::imag(plots[v]) << std::endl; */
-      if (acos(-1) < angle && angle < acos(-1) * 5 / 4) { // is corner
+      if (acos(-1) < angle && angle < acos(-1) * 11 / 8) { // is corner
         corner_pnts.push_back(plots_xy[i]);
       }
     }
@@ -431,10 +431,10 @@ struct Piece {
       col[std::real(p)][std::imag(p)] = 20;
     }
     /* for (auto p : ch_inside) col[std::real(p)][std::imag(p)] = 100; */
-    /* for (auto p : corner_pnts) col[std::real(p)][std::imag(p)] = 200; */
-    for (int i = 0; i < 4; ++i) {
-      if (edge_type[i] == 1) col[std::real(corner4[i])][std::imag(corner4[i])] = 200;
-    }
+    for (auto p : corner4) col[std::real(p)][std::imag(p)] = 200;
+    /* for (int i = 0; i < 4; ++i) { */
+    /*   if (edge_type[i] == 1) col[std::real(corner4[i])][std::imag(corner4[i])] = 200; */
+    /* } */
   }
   void match(const cv::Mat &img, const Piece &oth) {
     for (int i = 0; i < 4; ++i) {
@@ -647,23 +647,26 @@ int main(int argc, const char* argv[]) {
   /* /1* piece4.render(img); *1/ */
   /* piece4.match(img, piece1); */
 
-  cv::Mat img_d(img.rows, img.cols, CV_8U, cv::Scalar(0));
+  const int canvas_r = 1000;
+  const int canvas_c = 1600;
+  cv::Mat img_d(canvas_r, canvas_c, CV_8U, cv::Scalar(0)); // TODO: variable size of picture
 
   int prev_max_r = 0;
   int next_max_r = 0;
   int cur_c = 0;
   for (int i = 0; i < pieces.size(); ++i) {
+    const int offset = 20;
     Piece piece(pieces[i]);
     int r = piece.col.size();
-    int rr = 10 + r + 10;
+    int rr = offset + r + offset;
     int c = piece.col[0].size();
-    int cc = 10 + c + 10;
+    int cc = offset + c + offset;
     next_max_r = std::max(next_max_r, prev_max_r + rr);
-    if (img.cols <= cur_c + cc) {
+    if (canvas_c <= cur_c + cc) {
       cur_c = 0;
       prev_max_r = next_max_r;
     }
-    render(img_d, piece.col, prev_max_r + 10, cur_c + 10);
+    render(img_d, piece.col, prev_max_r + offset, cur_c + offset);
     cur_c += cc;
   }
 
