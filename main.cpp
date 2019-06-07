@@ -519,12 +519,15 @@ struct Board {
         sol[row][col] = std::make_tuple(pi, d, rot_ang, rot_nuvec, rot_nlvec, st - offset_rot, ur, bl);
         int ctype = (pieces[pi].edge_type[(d + 3) % 4] == 0) | (pieces[pi].edge_type[(d + 2) % 4] == 0) << 1;
         if (ctype == 1) { // edge
-          if (solve(row + 1, 0)) return true;
+          bool bad = (!row && pieces.size() % col)
+                  || (row && sol[0].size() != col + 1);
+          if (!bad && solve(row + 1, 0)) return true;
           sol.pop_back();
         } else if (ctype == 3) { // corner
           return std::accumulate(used.begin(), used.end(), 0) == pieces.size();
         } else {
-          if (solve(row, col + 1)) return true;
+          bool bad = (row && sol[0].size() == col + 1);
+          if (!bad && solve(row, col + 1)) return true;
           sol[row].pop_back();
         }
         used[pi] = 0;
