@@ -136,14 +136,6 @@ std::vector<std::vector<kika::cod>> flood_all(std::vector<std::vector<int>> &col
   return ccs;
 }
 
-void render(cv::Mat &mat, const std::vector<kika::cod> &pnts) {
-  for (auto pnt : pnts) {
-    int x = real(pnt);
-    int y = imag(pnt);
-    mat.at<uchar>(x, y) = 255;
-  }
-}
-
 void render(cv::Mat &mat, const std::vector<std::vector<int>> &col, int r = 0, int c = 0) {
   for (int i = 0; i < col.size(); ++i) {
     for (int j = 0; j < col[0].size(); ++j) {
@@ -165,13 +157,12 @@ struct Piece {
   int offset_y;
   int perimeter;
   Piece(std::vector<kika::cod> P) {
-    double max_x, max_y; std::tie(offset_x, offset_y, max_x, max_y, P) = normalize_pnts(P);
+    double max_x, max_y;
+    std::tie(offset_x, offset_y, max_x, max_y, P) = normalize_pnts(P);
     std::vector<kika::cod> ch = kika::full_convex_hull(P);
     col.assign(max_x, std::vector<int>(max_y, -1));
-    for (int i = 0; i < P.size(); ++i) {
-      col[std::real(P[i])][std::imag(P[i])] = 200;
-    }
-    for (const kika::cod &p : ch) col[std::real(p)][std::imag(p)] = 200;
+    for (const auto &p : P) col[std::real(p)][std::imag(p)] = 200;
+    for (const auto &p : ch) col[std::real(p)][std::imag(p)] = 200;
     std::vector<std::vector<kika::cod>> ccs = vec2::select(
       flood_all(col),
       [](const std::vector<kika::cod> &v) { return 10 < v.size(); }
@@ -200,16 +191,13 @@ struct Piece {
         sx += dx * dx / ccs[i].size();
         sy += dy * dy / ccs[i].size();
       }
-      qs[i] = sy * 2 < sx;
+      qs[i] = sy * 2 < sx; // TODO: dangerous
     }
 
     std::vector<std::tuple<double, int>> best(
         ccs.size(), {std::numeric_limits<double>::max(), -1});
-    for (int i = 0; i < ccs.size(); ++i) {
-      if (!qs[i]) continue;
-      for (int j = 0; j < ccs.size(); ++j) {
-        if (!qs[j]) continue;
-        if (i == j) continue;
+    for (int i = 0; i < ccs.size(); ++i) if (qs[i]) {
+      for (int j = 0; j < ccs.size(); ++j) if (i != j && qs[j]) {
         double angle = kika::angle180(vs[i], vs[j]);
         if (acos(-1) * 3 / 4 < angle) {
           double dd = kika::dist2(gs[i], gs[j]);
@@ -228,10 +216,10 @@ struct Piece {
       assert(i == std::get<1>(best[j]));
       if (j < i) continue;
       std::vector<kika::cod> pnts;
-      for (const kika::cod &p : ccs[i]) pnts.push_back(p);
-      for (const kika::cod &p : ccs[j]) pnts.push_back(p);
+      for (const auto &p : ccs[i]) pnts.push_back(p);
+      for (const auto &p : ccs[j]) pnts.push_back(p);
       std::vector<kika::cod> ch = kika::full_convex_hull(pnts);
-      for (auto p : ch) col[std::real(p)][std::imag(p)] = 200;
+      for (const auto &p : ch) col[std::real(p)][std::imag(p)] = 200;
     }
 
     std::vector<std::vector<kika::cod>> col2pnts = flood_all(col);
@@ -242,8 +230,9 @@ struct Piece {
                                   }) -
                  col2pnts.begin();
 
-    kika::cod g = std::accumulate(col2pnts[best_i].begin(), col2pnts[best_i].end(), kika::cod());
-    g /= kika::cod(col2pnts[best_i].size(), 0);
+    kika::cod g = std::accumulate(col2pnts[best_i].begin(),
+                                  col2pnts[best_i].end(), kika::cod()) /
+                  kika::cod(col2pnts[best_i].size(), 0);
 
     ch_inside = kika::full_convex_hull(col2pnts[best_i]);
     perimeter = ch_inside.size();
@@ -339,17 +328,37 @@ struct Piece {
     }
 
     { // edge_type
+      for (const auto &p : ch_inside) col[std::real(p)][std::imag(p)] = 201;
       edge_type.assign(4, 0);
       for (int i = 0; i < 4; ++i) {
         kika::cod u = corner4[i];
         kika::cod v = corner4[(i + 1) % 4];
-        std::vector<double> w(2);
-        for (const kika::cod &p : P) {
-          double a = kika::cross(v - u, p - u);
-          if (a < 0) w[0] = std::max(w[0], -a);
-          else if (0 < a) w[1] = std::max(w[1], a);
+        int ptr = 0; while (std::abs(ch[ptr] - u) > 1) (ptr += 1) %= ch.size();
+        int cnt200 = 0;
+        int cnt201 = 0;
+        for (; std::abs(ch[ptr] - v) > 1; (ptr += 1) %= ch.size()) {
+          auto p = ch[ptr];
+          int x = std::real(p);
+          int y = std::imag(p);
+          bool any201 = col[std::real(p)][std::imag(p)] == 201;
+          for (int r = 1; r < 3 && !any201; ++r) {
+            for (int d = 0; d < 8; ++d) {
+              static const int dx[] = {1, 0, -1, 0, 1, 1, -1, -1};
+              static const int dy[] = {0, 1, 0, -1, 1, -1, 1, -1};
+              int nx = x + dx[d] * r;
+              int ny = y + dy[d] * r;
+              if (nx < 0 || col.size() <= nx || ny < 0 || col[nx].size() <= ny) continue;
+              if (col[nx][ny] == 201) {
+                any201 = true;
+                break;
+              }
+            }
+          }
+          cnt200 += !any201;
+          cnt201 += any201;
         }
-        if (std::min(w[0], w[1]) * 9 > std::max(w[0], w[1])) { // TODO: unsafe
+        /* std::cout << cnt200 << " " << cnt201 << std::endl; */
+        if (cnt200 > cnt201) { // TODO: unsafe
           edge_type[i] = 2; // convex
         } else {
           std::set<std::pair<int, int>> bag;
@@ -405,11 +414,11 @@ struct Piece {
     }
 
     col.assign(max_x, std::vector<int>(max_y));
-    for (auto p : P) col[std::real(p)][std::imag(p)] = 80;
+    for (auto p : P) col[std::real(p)][std::imag(p)] = 20;
     /* for (auto p : ch_inside) col[std::real(p)][std::imag(p)] = 100; */
     for (auto p : corner4) col[std::real(p)][std::imag(p)] = 255;
     /* for (int i = 0; i < 4; ++i) { */
-    /*   if (edge_type[i] == 1) col[std::real(corner4[i])][std::imag(corner4[i])] = 200; */
+    /*   if (edge_type[i] == 2) col[std::real(corner4[i])][std::imag(corner4[i])] = 255; */
     /* } */
   }
   void render(const cv::Mat &img) {
@@ -569,33 +578,31 @@ int main(int argc, const char* argv[]) {
   std::vector<Piece> pieces;
   for (auto pnts : piece_pnts) pieces.push_back(Piece(pnts));
 
-  /* const int canvas_r = 1000; */
-  /* const int canvas_c = 1600; */
-  /* cv::Mat img_d(canvas_r, canvas_c, CV_8U, cv::Scalar(0)); // TODO: variable size of picture */
-
-  /* int prev_max_r = 0; */
-  /* int next_max_r = 0; */
-  /* int cur_c = 0; */
-  /* for (int i = 0; i < pieces.size(); ++i) { */
-  /*   const int offset = 20; */
-  /*   Piece piece(pieces[i]); */
-  /*   int r = piece.col.size(); */
-  /*   int rr = offset + r + offset; */
-  /*   int c = piece.col[0].size(); */
-  /*   int cc = offset + c + offset; */
-  /*   next_max_r = std::max(next_max_r, prev_max_r + rr); */
-  /*   if (canvas_c <= cur_c + cc) { */
-  /*     cur_c = 0; */
-  /*     prev_max_r = next_max_r; */
-  /*   } */
-  /*   render(img_d, piece.col, prev_max_r + offset, cur_c + offset); */
-  /*   cur_c += cc; */
-  /* } */
-
-  /* cv::imwrite("pieces.png", img_d); */
-  /* cv::namedWindow("Display window", cv::WINDOW_AUTOSIZE); */ 
-  /* cv::imshow("Display window", img_d); */  
-  /* cv::waitKey(0); */
+  const int canvas_r = 1000;
+  const int canvas_c = 1600;
+  cv::Mat img_d(canvas_r, canvas_c, CV_8U, cv::Scalar(0)); // TODO: variable size of picture
+  int prev_max_r = 0;
+  int next_max_r = 0;
+  int cur_c = 0;
+  for (int i = 0; i < pieces.size(); ++i) {
+    const int offset = 20;
+    Piece piece(pieces[i]);
+    int r = piece.col.size();
+    int rr = offset + r + offset;
+    int c = piece.col[0].size();
+    int cc = offset + c + offset;
+    next_max_r = std::max(next_max_r, prev_max_r + rr);
+    if (canvas_c <= cur_c + cc) {
+      cur_c = 0;
+      prev_max_r = next_max_r;
+    }
+    render(img_d, piece.col, prev_max_r + offset, cur_c + offset);
+    cur_c += cc;
+  }
+  cv::imwrite("pieces.png", img_d);
+  cv::namedWindow("Display window", cv::WINDOW_AUTOSIZE); 
+  cv::imshow("Display window", img_d);  
+  cv::waitKey(0);
 
   Board board(pieces);
   board.render(img);

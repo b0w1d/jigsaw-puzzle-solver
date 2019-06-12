@@ -26,6 +26,9 @@ double dist2(cod a, cod b) {
 double dist(cod a, cod b) {
   return std::sqrt(dist2(a, b));
 }
+double dist_to_line(cod p, cod a, cod b) {
+  return abs(cross(b - a, p - a) / abs(b - a));
+}
 cod rotate(cod a, double rad) {
   return a * cod(cos(rad), sin(rad));
 }
