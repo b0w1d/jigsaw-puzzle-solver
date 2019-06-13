@@ -565,7 +565,10 @@ struct Board {
               double d_ulen = row ? std::abs(std::abs(pu_vec) - std::abs(u_vec)) : 0;
               double d_llen = col ? std::abs(std::abs(pl_vec) - std::abs(l_vec)) : 0;
               if (0.2 < d_ang || 6 < d_ulen || 6 < d_llen) continue;
-              cands.emplace_back(-(d_ulen + d_llen + d_ang * 200), pi, d);
+              std::cout << "cand #" << pi << ": ";
+              std::cout << "d_ang=" << d_ang << ", d_ulen=" << d_ulen << ", d_llen=" << d_llen; 
+              std::cout << ", score=" << (d_ulen*d_ulen + d_llen*d_llen + d_ang * 100) << "\n";
+              cands.emplace_back(d_ulen*d_ulen + d_llen*d_llen + d_ang * 100, pi, d);
             }
           }
         }
@@ -596,6 +599,7 @@ struct Board {
         used[pi] = 1;
         sol[row][col] = std::make_tuple(pi, d, rot_ang, rot_nuvec, rot_nlvec, st - offset_rot, ur, bl);
         int ctype = (pieces[pi].edge_type[(d + 3) % 4] == 0) | (pieces[pi].edge_type[(d + 2) % 4] == 0) << 1;
+        std::cout << "  (" << row << ", " << col << "): try cand#" << pi << " (score=" << std::get<0>(cand) << ")\n";
         if (ctype == 1) { // edge
           bool bad = (!row && pieces.size() % (col + 1))
                   || (row && sol[0].size() != col + 1);
