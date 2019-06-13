@@ -1,0 +1,2 @@
+# How to run
+g++ -std=c++11 main.cpp `pkg-config opencv4 --cflags --libs` && ./a.out images/test4.png

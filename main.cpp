@@ -65,6 +65,9 @@ std::vector<std::vector<kika::cod>> extractPieces(const cv::Mat &img) {
   std::vector<std::vector<int>> gx = vec2::convolve(mat, sobel_filter_x);
   std::vector<std::vector<int>> gy = vec2::convolve(mat, sobel_filter_y);
   cv::Mat res(img.rows, img.cols, CV_8U);
+  for (int i = 0; i < img.rows; ++i)
+    for (int j = 0; j < img.cols; ++j)
+      res.at<uchar>(i, j) = 0;
   for (int i = 1; i + 1 < img.rows; ++i) {
     for (int j = 1; j + 1 < img.cols; ++j) {
       int magnitude = std::sqrt(gx[i][j]*gx[i][j] + gy[i][j]*gy[i][j]);
@@ -72,6 +75,14 @@ std::vector<std::vector<kika::cod>> extractPieces(const cv::Mat &img) {
       res.at<uchar>(i, j) = (threshold < magnitude) * magnitude;
     }
   }
+
+  {
+    cv::imwrite("sobel.png", res);
+    cv::namedWindow("Display window", cv::WINDOW_AUTOSIZE); 
+    cv::imshow("Display window", res);  
+    cv::waitKey(0);
+  }
+
   int col_cnt = 0; // assumes between every piece there is some space, as well as the corner
   std::vector<std::vector<int>> col(res.rows, std::vector<int>(res.cols, -1));
   flood(res.rows, res.cols, 0, 0, col_cnt,
@@ -83,15 +94,43 @@ std::vector<std::vector<kika::cod>> extractPieces(const cv::Mat &img) {
       flood(res.rows, res.cols, i, j, col_cnt, [](int x, int y) { return false; }, col);
     }
   }
-  std::vector<std::vector<kika::cod>> col2pos(col_cnt + 1);
-  for (int i = 0; i < col.size(); ++i) {
-    for (int j = 0; j < col[i].size(); ++j) {
-      if (col[i][j]) {
-        col2pos[col[i][j]].push_back(kika::cod(i, j));
+  std::vector<std::vector<kika::cod>> col2pos; {
+    std::vector<std::vector<kika::cod>> _col2pos(col_cnt + 1);
+    for (int i = 0; i < col.size(); ++i) {
+      for (int j = 0; j < col[i].size(); ++j) {
+        if (col[i][j]) {
+          _col2pos[col[i][j]].push_back(kika::cod(i, j));
+        }
       }
     }
+    for (int i = 1; i < _col2pos.size(); ++i) {
+      if (_col2pos[i].size() < 20) continue;
+      col2pos.push_back(_col2pos[i]);
+    }
   }
-  col2pos.erase(col2pos.begin());
+
+  {
+    cv::Mat f(img.rows, img.cols, CV_8UC3, cv::Scalar(0));
+    for (int c = 0; c < col2pos.size(); ++c) {
+      int rand_color[3] = {
+        rand() & 255,
+        rand() & 255,
+        rand() & 255
+      };
+      for (auto p : col2pos[c]) {
+        int i = std::real(p);
+        int j = std::imag(p);
+        for (int k = 0; k < 3; ++k) {
+          f.at<cv::Vec3b>(i, j)[k] = rand_color[k];
+        }
+      }
+    }
+    cv::imwrite("sobel_flood.png", f);
+    cv::namedWindow("Display window", cv::WINDOW_AUTOSIZE); 
+    cv::imshow("Display window", f);  
+    cv::waitKey(0);
+  }
+
   return col2pos;
 }
 
@@ -137,10 +176,42 @@ std::vector<std::vector<kika::cod>> flood_all(std::vector<std::vector<int>> &col
 }
 
 void render(cv::Mat &mat, const std::vector<std::vector<int>> &col, int r = 0, int c = 0) {
+  const static int COL[][3] = {
+    { 0, 0, 0 }, 
+    { 128, 128, 128 }, 
+    { 0, 0, 0 }, 
+    { 0, 0, 0 }, 
+    { 255, 0, 0 }, 
+    { 0, 255, 0 }, 
+    { 0, 0, 255 },
+    { 255, 0, 0 }, 
+    { 0, 255, 0 }, 
+    { 0, 0, 255 }
+  };
   for (int i = 0; i < col.size(); ++i) {
     for (int j = 0; j < col[0].size(); ++j) {
-      if (col[i][j]) {
-        mat.at<uchar>(r + i, c + j) = col[i][j];
+      if (col[i][j] < 7) {
+        for (int k = 0; k < 3; ++k) {
+          mat.at<cv::Vec3b>(r + i, c + j)[k] = COL[col[i][j]][k];
+        }
+      }
+    }
+  }
+  for (int i = 0; i < col.size(); ++i) {
+    for (int j = 0; j < col[0].size(); ++j) {
+      if (6 < col[i][j]) {
+        const int dx[] = { 0, 1, 0, -1, 1, 1, -1, -1 };
+        const int dy[] = { 1, 0, -1, 0, 1, -1, 1, -1 };
+        for (int z = 0; z < 10; ++z) {
+          for (int d = 0; d < 8; ++d) {
+            int ni = i + z * dx[d];
+            int nj = j + z * dy[d];
+            if (ni < 0 || nj < 0 || ni >= col.size() || nj >= col[ni].size()) continue;
+            for (int k = 0; k < 3; ++k) {
+              mat.at<cv::Vec3b>(r + ni, c + nj)[k] = COL[col[i][j]][k];
+            }
+          }
+        }
       }
     }
   }
@@ -148,6 +219,7 @@ void render(cv::Mat &mat, const std::vector<std::vector<int>> &col, int r = 0, i
 
 struct Piece {
   std::vector<std::vector<int>> col;
+  std::vector<std::vector<int>> col_debug;
   std::vector<kika::cod> convex_pnts;
   std::vector<kika::cod> corner_pnts;
   std::vector<kika::cod> ch_inside;
@@ -211,15 +283,16 @@ struct Piece {
     col.assign(max_x, std::vector<int>(max_y, -1));
     for (auto p : ch) col[std::real(p)][std::imag(p)] = 100;
     for (int i = 0; i < ccs.size(); ++i) {
-      if (!qs[i]) continue;
-      int j = std::get<1>(best[i]);
-      assert(i == std::get<1>(best[j]));
-      if (j < i) continue;
-      std::vector<kika::cod> pnts;
-      for (const auto &p : ccs[i]) pnts.push_back(p);
-      for (const auto &p : ccs[j]) pnts.push_back(p);
-      std::vector<kika::cod> ch = kika::full_convex_hull(pnts);
-      for (const auto &p : ch) col[std::real(p)][std::imag(p)] = 200;
+      if (qs[i]) {
+        int j = std::get<1>(best[i]);
+        assert(i == std::get<1>(best[j]));
+        if (j < i) continue;
+        std::vector<kika::cod> pnts;
+        for (const auto &p : ccs[i]) pnts.push_back(p);
+        for (const auto &p : ccs[j]) pnts.push_back(p);
+        std::vector<kika::cod> ch = kika::full_convex_hull(pnts);
+        for (const auto &p : ch) col[std::real(p)][std::imag(p)] = 200;
+      }
     }
 
     std::vector<std::vector<kika::cod>> col2pnts = flood_all(col);
@@ -413,13 +486,20 @@ struct Piece {
       }
     }
 
-    col.assign(max_x, std::vector<int>(max_y));
-    for (auto p : P) col[std::real(p)][std::imag(p)] = 20;
-    /* for (auto p : ch_inside) col[std::real(p)][std::imag(p)] = 100; */
-    for (auto p : corner4) col[std::real(p)][std::imag(p)] = 255;
-    /* for (int i = 0; i < 4; ++i) { */
-    /*   if (edge_type[i] == 2) col[std::real(corner4[i])][std::imag(corner4[i])] = 255; */
-    /* } */
+    col.assign(max_x, std::vector<int>(max_y, 0));
+    for (auto p : P) col[std::real(p)][std::imag(p)] = 1;
+    col_debug = col;
+    for (auto p : ch) col_debug[std::real(p)][std::imag(p)] = 2;
+    /* for (auto p : ch_inside) col[std::real(p)][std::imag(p)] = 3; */
+    /* for (auto p : corner4) col[std::real(p)][std::imag(p)] = 255; */
+    for (int i = 0; i < 4; ++i) {
+      col[std::real(corner4[i])][std::imag(corner4[i])] = 7 + edge_type[i];
+    }
+    for (int i = 0; i < ccs.size(); ++i) {
+      for (auto p : ccs[i]) {
+        col_debug[std::real(p)][std::imag(p)] = 4 + qs[i];
+      }
+    }
   }
   void render(const cv::Mat &img) {
     cv::Mat img_d(col.size(), col[0].size(), CV_8UC3, cv::Scalar(0));
@@ -445,6 +525,8 @@ struct Board {
   Board(std::vector<Piece> _pieces) : pieces(_pieces) {
     std::vector<int> used(pieces.size());
     std::function<bool(int, int)> solve = [&](int row, int col) {
+      if ((col + 1) * (col + 1) > pieces.size()) return false;
+      std::cout << row << " " << col << "\n";
       sol.resize(row + 1);
       sol[row].resize(col + 1);
       std::vector<int> et(2); {
@@ -483,7 +565,7 @@ struct Board {
               double d_ulen = row ? std::abs(std::abs(pu_vec) - std::abs(u_vec)) : 0;
               double d_llen = col ? std::abs(std::abs(pl_vec) - std::abs(l_vec)) : 0;
               if (0.2 < d_ang || 6 < d_ulen || 6 < d_llen) continue;
-              cands.emplace_back(-(d_ulen*d_ulen + d_llen*d_llen + d_ang*d_ang * 100), pi, d);
+              cands.emplace_back(-(d_ulen + d_llen + d_ang * 200), pi, d);
             }
           }
         }
@@ -578,31 +660,61 @@ int main(int argc, const char* argv[]) {
   std::vector<Piece> pieces;
   for (auto pnts : piece_pnts) pieces.push_back(Piece(pnts));
 
-  const int canvas_r = 1000;
-  const int canvas_c = 1600;
-  cv::Mat img_d(canvas_r, canvas_c, CV_8U, cv::Scalar(0)); // TODO: variable size of picture
-  int prev_max_r = 0;
-  int next_max_r = 0;
-  int cur_c = 0;
-  for (int i = 0; i < pieces.size(); ++i) {
-    const int offset = 20;
-    Piece piece(pieces[i]);
-    int r = piece.col.size();
-    int rr = offset + r + offset;
-    int c = piece.col[0].size();
-    int cc = offset + c + offset;
-    next_max_r = std::max(next_max_r, prev_max_r + rr);
-    if (canvas_c <= cur_c + cc) {
-      cur_c = 0;
-      prev_max_r = next_max_r;
+  {
+    const int canvas_r = 1000;
+    const int canvas_c = 1600;
+    cv::Mat img_d(canvas_r, canvas_c, CV_8UC3); // TODO: variable size of picture
+    int prev_max_r = 0;
+    int next_max_r = 0;
+    int cur_c = 0;
+    for (int i = 0; i < pieces.size(); ++i) {
+      const int offset = 20;
+      Piece piece(pieces[i]);
+      int r = piece.col.size();
+      int rr = offset + r + offset;
+      int c = piece.col[0].size();
+      int cc = offset + c + offset;
+      next_max_r = std::max(next_max_r, prev_max_r + rr);
+      if (canvas_c <= cur_c + cc) {
+        cur_c = 0;
+        prev_max_r = next_max_r;
+      }
+      render(img_d, piece.col_debug, prev_max_r + offset, cur_c + offset);
+      cur_c += cc;
     }
-    render(img_d, piece.col, prev_max_r + offset, cur_c + offset);
-    cur_c += cc;
+    cv::imwrite("filled.png", img_d);
+    cv::namedWindow("Display window", cv::WINDOW_AUTOSIZE); 
+    cv::imshow("Display window", img_d);  
+    cv::waitKey(0);
   }
-  cv::imwrite("pieces.png", img_d);
-  cv::namedWindow("Display window", cv::WINDOW_AUTOSIZE); 
-  cv::imshow("Display window", img_d);  
-  cv::waitKey(0);
+
+  {
+    const int canvas_r = 1000;
+    const int canvas_c = 1600;
+    cv::Mat img_d(canvas_r, canvas_c, CV_8UC3); // TODO: variable size of picture
+    int prev_max_r = 0;
+    int next_max_r = 0;
+    int cur_c = 0;
+    for (int i = 0; i < pieces.size(); ++i) {
+      const int offset = 20;
+      Piece piece(pieces[i]);
+      int r = piece.col.size();
+      int rr = offset + r + offset;
+      int c = piece.col[0].size();
+      int cc = offset + c + offset;
+      next_max_r = std::max(next_max_r, prev_max_r + rr);
+      if (canvas_c <= cur_c + cc) {
+        cur_c = 0;
+        prev_max_r = next_max_r;
+      }
+      render(img_d, piece.col, prev_max_r + offset, cur_c + offset);
+      cur_c += cc;
+    }
+    cv::imwrite("lines.png", img_d);
+    cv::namedWindow("Display window", cv::WINDOW_AUTOSIZE); 
+    cv::imshow("Display window", img_d);  
+    cv::waitKey(0);
+  }
 
   Board board(pieces);
   board.render(img);
