@@ -551,7 +551,7 @@ struct Board {
       if (!row && !col) st = kika::cod();
       else if (row && !col) st = std::get<7>(sol[row - 1][col]);
       else if (!row && col)  st = std::get<6>(sol[row][col - 1]);
-      else st = row + col & 1 ? std::get<7>(sol[row - 1][col]) : std::get<6>(sol[row][col - 1]);
+      else st = ~row + col & 1 ? std::get<7>(sol[row - 1][col]) : std::get<6>(sol[row][col - 1]);
       std::vector<std::tuple<double, int, int>> cands;
       for (int pi = 0; pi < pieces.size(); ++pi) {
         if (used[pi]) continue;
